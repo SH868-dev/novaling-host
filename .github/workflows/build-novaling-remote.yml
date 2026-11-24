@@ -1,4 +1,5 @@
 ---
+# NovaLinG embedded remote streaming host bundle pipeline
 name: Build NovaLinG Remote Host Bundle (Windows x64)
 
 permissions:
