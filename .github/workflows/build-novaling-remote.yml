@@ -169,8 +169,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ steps.ver.outputs.tag }}"
-          $ver = "${{ steps.ver.outputs.version }}"
-          $notes = "NovaLinG embedded remote host bundle (novaling.exe) for linbot/턴봇사냥.`n`nStage into lin with:`n```bash`npython packaging/stage_remote.py novaling-remote-win64.zip`n```"
+          $notes = "NovaLinG embedded remote host bundle (novaling.exe) for linbot."
           gh release view $tag 2>$null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag dist-remote/novaling-remote-win64.zip dist-remote/SHA256SUMS.txt --clobber
