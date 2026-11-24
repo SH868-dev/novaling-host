@@ -1181,6 +1181,7 @@ namespace platf {
   }
 #endif
 
+#ifndef _WIN32
   void move_mouse(input_t &input, int deltaX, int deltaY) {
     virtualhid::move_mouse(virtualhid::get_input_context(input), deltaX, deltaY);
   }
@@ -1204,6 +1205,7 @@ namespace platf {
   void hscroll(input_t &input, int high_res_distance) {
     virtualhid::hscroll(virtualhid::get_input_context(input), high_res_distance);
   }
+#endif
 
   void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags, bool extended) {
     virtualhid::keyboard_update(virtualhid::get_input_context(input), modcode, release, flags, extended);

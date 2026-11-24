@@ -44,6 +44,11 @@ namespace config {
   inline constexpr std::string_view GAMEPAD_DRIVER_VIGEMBUS = "vigembus";  ///< Allow only ViGEmBus for Windows gamepads.
   inline constexpr std::string_view GAMEPAD_DRIVER_NONE = "none";  ///< Disable virtual gamepads on Windows and macOS.
 
+  inline constexpr std::string_view MOUSE_DRIVER_AUTO = "auto";  ///< Prefer Interception or novaling KMDF+VHF driver and fall back to libvirtualhid/SendInput.
+  inline constexpr std::string_view MOUSE_DRIVER_INTERCEPTION = "interception";  ///< Use only the Interception kernel mouse filter driver (mouse.sys) on Windows.
+  inline constexpr std::string_view MOUSE_DRIVER_NOVALING_VHID = "novaling_vhid";  ///< Use only the novaling KMDF+VHF virtual mouse driver on Windows.
+  inline constexpr std::string_view MOUSE_DRIVER_VIRTUALHID = "virtualhid";  ///< Use libvirtualhid / SendInput mouse backend.
+
   // track modified config options
   inline config_map_t modified_config_settings;  ///< Configuration keys changed during the current parse or UI update.
 
@@ -309,6 +314,7 @@ namespace config {
 
     std::string gamepad;  ///< Virtual controller profile selected by configuration.
     std::string gamepad_driver;  ///< Virtual gamepad backend policy on Windows and macOS.
+    std::string mouse_driver;  ///< Virtual mouse backend policy on Windows.
     bool ds4_back_as_touchpad_click;  ///< Map Back/Select to touchpad click for PlayStation-style gamepads.
     bool motion_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with motion controls.
     bool touchpad_as_ds4;  ///< Prefer PlayStation-style emulation for client gamepads with touchpad input.

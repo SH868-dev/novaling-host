@@ -1,7 +1,7 @@
 BeforeAll {
     $sourcePath = Join-Path `
         $PSScriptRoot `
-        "..\..\src_assets\windows\misc\sunshine-setup-process.ps1"
+        "..\..\src_assets\windows\misc\novaling-setup-process.ps1"
 
     function Write-LogMessage {
         param(
@@ -226,21 +226,21 @@ Describe "Executable wrappers" {
         }
     }
 
-    It "passes the packaged Sunshine path to the common runner" {
+    It "passes the packaged novaling path to the common runner" {
         $script:RootDir = $TestDrive
 
-        $result = Invoke-SunshineIfExist `
+        $result = Invoke-NovalingIfExist `
             -Arguments "--restore-nvprefs-undo" `
             -Description "Restoring" `
             -Emoji "*"
 
         $result | Should -Be 0
         Should -Invoke -CommandName Invoke-ExecutableIfExist -Times 1 -Exactly -Scope It -ParameterFilter {
-            $ExecutablePath -eq (Join-Path $TestDrive "sunshine.exe") -and
+            $ExecutablePath -eq (Join-Path $TestDrive "novaling.exe") -and
                 $Arguments -eq "--restore-nvprefs-undo" -and
                 $Description -eq "Restoring" -and
                 $Emoji -eq "*" -and
-                $ExecutableName -eq "Sunshine" -and
+                $ExecutableName -eq "novaling" -and
                 $MissingTarget -eq "executable" -and
                 -not $FailureTarget
         }

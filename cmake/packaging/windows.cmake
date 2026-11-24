@@ -18,8 +18,10 @@ install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT application)
 
 # Mandatory scripts
 install(FILES
-        "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/sunshine-setup.ps1"
-        "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/sunshine-setup-process.ps1"
+        "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/novaling-setup.ps1"
+        "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/novaling-setup-process.ps1"
+        "${CMAKE_SOURCE_DIR}/drivers/novaling_vhid_mouse/scripts/install-mouse-driver.ps1"
+        "${CMAKE_SOURCE_DIR}/drivers/novaling_vhid_mouse/scripts/uninstall-mouse-driver.ps1"
         DESTINATION "scripts"
         COMPONENT assets)
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
@@ -74,7 +76,7 @@ set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 
 # service auto-start script
 set(CPACK_COMPONENT_AUTOSTART_DISPLAY_NAME "Launch on Startup")
-set(CPACK_COMPONENT_AUTOSTART_DESCRIPTION "If enabled, launches Sunshine automatically on system startup.")
+set(CPACK_COMPONENT_AUTOSTART_DESCRIPTION "If enabled, launches novaling automatically on system startup.")
 set(CPACK_COMPONENT_AUTOSTART_GROUP "Core")
 
 # assets

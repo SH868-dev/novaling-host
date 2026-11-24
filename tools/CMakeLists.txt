@@ -41,7 +41,8 @@ target_link_libraries(audio-info
 )
 target_compile_options(audio-info PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
 
-add_executable(sunshinesvc sunshinesvc.cpp)
+add_executable(sunshinesvc sunshinesvc.cpp novalingsvc.rc)
+set_target_properties(sunshinesvc PROPERTIES OUTPUT_NAME "novalingsvc")
 target_link_libraries(sunshinesvc
         ${CMAKE_THREAD_LIBS_INIT}
         wtsapi32

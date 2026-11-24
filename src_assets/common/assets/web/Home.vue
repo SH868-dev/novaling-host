@@ -154,7 +154,7 @@
     sanitize: false
   });
 
-  console.log("Hello, Sunshine!")
+  console.log("Hello, novaling!")
   export default {
     components: {
       Navbar,

@@ -5,9 +5,9 @@ cmake_minimum_required(VERSION 3.24)
 # libvirtualhid requires 3.24
 # todo - set this conditionally
 
-project(Sunshine VERSION 0.0.0
-        DESCRIPTION "Self-hosted game stream host for Moonlight"
-        HOMEPAGE_URL "https://sunshine.lizardbyte.dev")
+project(novaling VERSION 0.0.0
+        DESCRIPTION "novaling remote streaming host"
+        HOMEPAGE_URL "https://novaling.local")
 
 # Minimum separately installed Virtual HID Broker version supported by this build.
 set(LIBVIRTUALHID_MINIMUM_VERSION "2026.914.1218.10")
@@ -31,14 +31,12 @@ endif()
 
 set(PROJECT_LICENSE "GPL-3.0-only")
 
-set(PROJECT_FQDN "dev.lizardbyte.app.Sunshine")
+set(PROJECT_FQDN "com.novaling.host")
 
-set(PROJECT_BRIEF_DESCRIPTION "GameStream host for Moonlight")  # must be <= 35 characters
+set(PROJECT_BRIEF_DESCRIPTION "novaling remote streaming host")  # must be <= 35 characters
 
-set(PROJECT_LONG_DESCRIPTION "Offering low latency, cloud gaming server capabilities with support for AMD, Intel, \
-and Nvidia GPUs for hardware encoding. Software encoding is also available. You can connect to Sunshine from any \
-Moonlight client on a variety of devices. A web UI is provided to allow configuration, and client pairing, from \
-your favorite web browser. Pair from the local server or any mobile device.")
+set(PROJECT_LONG_DESCRIPTION "novaling low-latency remote streaming host with hardware-accelerated encoding for AMD, Intel, \
+and Nvidia GPUs, custom kernel virtual HID mouse driver support, and web UI configuration.")
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to 'Release' as none was specified.")

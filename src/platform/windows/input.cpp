@@ -28,7 +28,9 @@
 
 // local includes
 #include "input.h"
+#include "interception_mouse.h"
 #include "misc.h"
+#include "vhid_mouse.h"
 #include "src/config.h"
 #include "src/globals.h"
 #include "src/logging.h"
@@ -521,8 +523,27 @@ namespace platf {
    */
   struct input_raw_t {
     virtualhid::input_context_t virtualhid;  ///< libvirtualhid input context.
+    windows::interception_mouse_client_t interception_mouse;  ///< Interception kernel mouse filter client.
+    windows::vhid_mouse_client_t novaling_mouse;  ///< novaling KMDF + VHF virtual mouse driver client.
     std::unique_ptr<vigem_t> vigem;  ///< ViGEm fallback context.
   };
+
+  namespace {
+    bool should_try_interception_mouse() {
+      return config::input.mouse_driver == config::MOUSE_DRIVER_INTERCEPTION ||
+             config::input.mouse_driver == config::MOUSE_DRIVER_AUTO;
+    }
+
+    bool should_try_novaling_mouse() {
+      return config::input.mouse_driver == config::MOUSE_DRIVER_NOVALING_VHID ||
+             config::input.mouse_driver == config::MOUSE_DRIVER_AUTO;
+    }
+
+    bool should_fallback_mouse_to_virtualhid() {
+      return config::input.mouse_driver == config::MOUSE_DRIVER_VIRTUALHID ||
+             config::input.mouse_driver == config::MOUSE_DRIVER_AUTO;
+    }
+  }  // namespace
 
   /**
    * @brief Check whether the libvirtualhid runtime should receive gamepad allocations.
@@ -621,6 +642,85 @@ namespace platf {
 
   virtualhid::input_context_t &virtualhid::get_input_context(input_t &input) {
     return input->virtualhid;
+  }
+
+  void move_mouse(input_t &input, int deltaX, int deltaY) {
+    auto *raw = static_cast<input_raw_t *>(input.get());
+    if (should_try_interception_mouse() && raw->interception_mouse.move_relative(deltaX, deltaY)) {
+      return;
+    }
+    if (should_try_novaling_mouse() && raw->novaling_mouse.move_relative(deltaX, deltaY)) {
+      return;
+    }
+    if (should_fallback_mouse_to_virtualhid()) {
+      virtualhid::move_mouse(raw->virtualhid, deltaX, deltaY);
+    }
+  }
+
+  void move_mouse(input_t &input, const touch_port_t &touch_port, int deltaX, int deltaY) {
+    auto *raw = static_cast<input_raw_t *>(input.get());
+    if (should_try_interception_mouse() && raw->interception_mouse.move_relative(deltaX, deltaY)) {
+      return;
+    }
+    if (should_try_novaling_mouse() && raw->novaling_mouse.move_relative(deltaX, deltaY)) {
+      return;
+    }
+    if (should_fallback_mouse_to_virtualhid()) {
+      virtualhid::move_mouse(raw->virtualhid, touch_port, deltaX, deltaY);
+    }
+  }
+
+  void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+    auto *raw = static_cast<input_raw_t *>(input.get());
+    if (should_try_interception_mouse() && raw->interception_mouse.move_absolute(touch_port, x, y)) {
+      return;
+    }
+    const bool allow_fallback = should_fallback_mouse_to_virtualhid();
+    if (should_try_novaling_mouse() && raw->novaling_mouse.move_absolute(touch_port, x, y, allow_fallback)) {
+      return;
+    }
+    if (allow_fallback) {
+      virtualhid::abs_mouse(raw->virtualhid, touch_port, x, y);
+    }
+  }
+
+  void button_mouse(input_t &input, int button, bool release) {
+    auto *raw = static_cast<input_raw_t *>(input.get());
+    if (should_try_interception_mouse() && raw->interception_mouse.button(button, release)) {
+      return;
+    }
+    if (should_try_novaling_mouse() && raw->novaling_mouse.button(button, release)) {
+      return;
+    }
+    if (should_fallback_mouse_to_virtualhid()) {
+      virtualhid::button_mouse(raw->virtualhid, button, release);
+    }
+  }
+
+  void scroll(input_t &input, int high_res_distance) {
+    auto *raw = static_cast<input_raw_t *>(input.get());
+    if (should_try_interception_mouse() && raw->interception_mouse.scroll(high_res_distance)) {
+      return;
+    }
+    if (should_try_novaling_mouse() && raw->novaling_mouse.scroll(high_res_distance)) {
+      return;
+    }
+    if (should_fallback_mouse_to_virtualhid()) {
+      virtualhid::scroll(raw->virtualhid, high_res_distance);
+    }
+  }
+
+  void hscroll(input_t &input, int high_res_distance) {
+    auto *raw = static_cast<input_raw_t *>(input.get());
+    if (should_try_interception_mouse() && raw->interception_mouse.hscroll(high_res_distance)) {
+      return;
+    }
+    if (should_try_novaling_mouse() && raw->novaling_mouse.hscroll(high_res_distance)) {
+      return;
+    }
+    if (should_fallback_mouse_to_virtualhid()) {
+      virtualhid::hscroll(raw->virtualhid, high_res_distance);
+    }
   }
 
   std::optional<util::point_t> get_mouse_loc(input_t & /*input*/) {

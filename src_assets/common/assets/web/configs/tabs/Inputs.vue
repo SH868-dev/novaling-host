@@ -331,6 +331,18 @@ watch(
               default="true"
     ></Checkbox>
 
+    <!-- Windows Virtual Mouse Driver Backend -->
+    <div class="mb-3" v-if="config.mouse === 'enabled' && platform === 'windows'">
+      <label for="mouse_driver" class="form-label">{{ $t('config.mouse_driver') }}</label>
+      <select id="mouse_driver" class="form-select" v-model="config.mouse_driver">
+        <option value="auto">{{ $t('config.mouse_driver_auto') }}</option>
+        <option value="interception">{{ $t('config.mouse_driver_interception') }}</option>
+        <option value="novaling_vhid">{{ $t('config.mouse_driver_novaling_vhid') }}</option>
+        <option value="virtualhid">{{ $t('config.mouse_driver_virtualhid') }}</option>
+      </select>
+      <div class="form-text">{{ $t('config.mouse_driver_desc') }}</div>
+    </div>
+
     <!-- High resolution scrolling support -->
     <Checkbox v-if="config.mouse === 'enabled'"
               class="mb-3"

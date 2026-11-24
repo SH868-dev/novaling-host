@@ -19,12 +19,13 @@ BEGIN
         BLOCK "040904E4"
         BEGIN
             VALUE "CompanyName",      TOSTRING(PROJECT_VENDOR)
-            VALUE "FileDescription",  TOSTRING(PROJECT_NAME)
+            VALUE "FileDescription",  "novaling Remote Streaming Host"
             VALUE "FileVersion",      TOSTRING(PROJECT_VERSION)
             VALUE "InternalName",     TOSTRING(PROJECT_NAME)
+            VALUE "OriginalFilename", "novaling.exe"
             VALUE "ProductName",      TOSTRING(PROJECT_NAME)
             VALUE "ProductVersion",   TOSTRING(PROJECT_VERSION)
-            VALUE "LegalCopyright",   "https://raw.githubusercontent.com/SunshineStream/Sunshine/master/LICENSE"
+            VALUE "LegalCopyright",   "novaling"
         END
     END
 

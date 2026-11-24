@@ -1,0 +1,175 @@
+---
+name: Build NovaLinG Remote Host Bundle (Windows x64)
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'novaling-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Bundle version (blank = date + short SHA)'
+        required: false
+        default: ''
+      publish_release:
+        description: 'Publish GitHub Release with novaling-remote-win64.zip'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: build-novaling-remote-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows-bundle:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Setup MSYS2 (UCRT64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-boost
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-cppwinrt
+            mingw-w64-ucrt-x86_64-curl-winssl
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-miniupnpc
+            mingw-w64-ucrt-x86_64-MinHook
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-nlohmann-json
+            mingw-w64-ucrt-x86_64-onevpl
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-opus
+            mingw-w64-ucrt-x86_64-qt6-static
+            mingw-w64-ucrt-x86_64-toolchain
+
+      - name: Setup NodeJS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Resolve Version
+        id: ver
+        shell: pwsh
+        run: |
+          if ("${{ inputs.version }}" -ne "") {
+            $ver = "${{ inputs.version }}"
+          } elseif ($env:GITHUB_REF -like "refs/tags/novaling-v*") {
+            $ver = $env:GITHUB_REF.Substring("refs/tags/novaling-v".Length)
+          } else {
+            $date = (Get-Date -Format "yyyy.MM.dd")
+            $sha = $env:GITHUB_SHA.Substring(0, 7)
+            $ver = "$date-$sha"
+          }
+          "version=$ver" >> $env:GITHUB_OUTPUT
+          "tag=novaling-v$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Export NodeJS Path
+        shell: pwsh
+        run: |
+          $nodeDir = Split-Path -Path (Get-Command node).Source -Parent
+          "NODEJS_PATH=$nodeDir" >> $env:GITHUB_ENV
+
+      - name: Build novaling.exe
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ steps.ver.outputs.version }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          NODEJS_UNIX="$(cygpath "${NODEJS_PATH}")"
+          export PATH="${PATH}:${NODEJS_UNIX}"
+
+          cmake \
+            -B build \
+            -G Ninja \
+            -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_DOCS=OFF \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_WERROR=OFF \
+            -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_PUBLISHER_NAME="novaling"
+          ninja -C build
+          cmake --install build --prefix build/install-novaling
+
+      - name: Verify novaling.exe Runtime Linkage
+        run: |
+          set -euo pipefail
+          for binary in build/novaling.exe build/tools/audio-info.exe build/tools/dxgi-info.exe build/tools/novalingsvc.exe; do
+            if [ ! -f "${binary}" ]; then
+              echo "Missing expected binary: ${binary}" >&2
+              exit 1
+            fi
+            linkage="$(ldd "${binary}")"
+            bad="$(awk '
+              BEGIN { IGNORECASE = 1 }
+              $1 == "zlib1.dll" { next }
+              $1 ~ /^minhook-detours\..*\.dll$/ { next }
+              $1 ~ /^api-ms-win-/ { next }
+              $1 ~ /^ext-ms-win-/ { next }
+              $0 ~ /=>[[:space:]]+not found/ { print }
+              $0 ~ /=>[[:space:]]+\/(clangarm64|clang64|mingw32|mingw64|ucrt64)\/bin\// { print }
+            ' <<< "${linkage}")"
+            if [ -n "${bad}" ]; then
+              echo "Unexpected runtime DLL dependency in ${binary}:" >&2
+              echo "${bad}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Package novaling-remote-win64.zip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path dist-remote | Out-Null
+          python scripts/package_novaling_remote.py `
+            --install-dir build/install-novaling `
+            --out-zip dist-remote/novaling-remote-win64.zip `
+            --version "${{ steps.ver.outputs.version }}" `
+            --commit "${{ github.sha }}"
+          $hash = (Get-FileHash -Path dist-remote/novaling-remote-win64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  novaling-remote-win64.zip" | Set-Content -Encoding ascii dist-remote/SHA256SUMS.txt
+
+      - name: Upload novaling-remote-win64.zip Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: novaling-remote-win64-${{ steps.ver.outputs.version }}
+          path: dist-remote/*
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/novaling-v') || inputs.publish_release == true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ steps.ver.outputs.tag }}"
+          $ver = "${{ steps.ver.outputs.version }}"
+          $notes = "NovaLinG embedded remote host bundle (novaling.exe) for linbot/턴봇사냥.`n`nStage into lin with:`n```bash`npython packaging/stage_remote.py novaling-remote-win64.zip`n```"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag dist-remote/novaling-remote-win64.zip dist-remote/SHA256SUMS.txt --clobber
+          } else {
+            gh release create $tag dist-remote/novaling-remote-win64.zip dist-remote/SHA256SUMS.txt --title "NovaLinG Remote Host $tag" --notes $notes
+          }

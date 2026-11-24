@@ -1,0 +1,33 @@
+/**
+ * @file tools/novalingsvc.rc
+ * @brief Windows version resource for novalingsvc.exe.
+ */
+#include "winver.h"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEOS          VOS__WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName",      "novaling"
+            VALUE "FileDescription",  "novaling Windows Service Host"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "novalingsvc"
+            VALUE "OriginalFilename", "novalingsvc.exe"
+            VALUE "ProductName",      "novaling"
+            VALUE "ProductVersion",   "1.0.0.0"
+            VALUE "LegalCopyright",   "novaling"
+        END
+    END
+
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1252
+    END
+END

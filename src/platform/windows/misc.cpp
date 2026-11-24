@@ -1813,7 +1813,7 @@ namespace platf {
     std::array<WCHAR, 256> hostname;
     if (GetHostNameW(hostname.data(), hostname.size()) == SOCKET_ERROR) {
       BOOST_LOG(error) << "GetHostNameW() failed: "sv << WSAGetLastError();
-      return "Sunshine"s;
+      return "novaling"s;
     }
     return utf_utils::to_utf8(hostname.data());
   }

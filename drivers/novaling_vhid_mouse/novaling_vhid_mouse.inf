@@ -1,0 +1,73 @@
+;
+; novaling_vhid_mouse.inf
+; Windows KMDF + VHF Virtual HID Mouse Driver for novaling
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=HIDClass
+ClassGuid={745a17a0-74d3-11d0-b6fe-00a0c90f57da}
+Provider=%ManufacturerName%
+CatalogFile=novaling_vhid_mouse.cat
+DriverVer=01/01/2026,1.0.0.0
+PnpLockdown=1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+novaling_vhid_mouse.sys = 1,,
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NTamd64.10.0...16299,NTarm64.10.0...16299
+
+[Standard.NTamd64.10.0...16299]
+%DeviceDesc%=NovalingVhidMouse_Device, Root\NovalingVhidMouse
+
+[Standard.NTarm64.10.0...16299]
+%DeviceDesc%=NovalingVhidMouse_Device, Root\NovalingVhidMouse
+
+[NovalingVhidMouse_Device.NT]
+CopyFiles=NovalingVhidMouse_CopyFiles
+
+[NovalingVhidMouse_CopyFiles]
+novaling_vhid_mouse.sys
+
+[NovalingVhidMouse_Device.NT.HW]
+AddReg=NovalingVhidMouse_AddReg
+
+[NovalingVhidMouse_AddReg]
+HKR,,"LowerFilters",0x00010008,"vhf"
+HKR,,Security,,"D:P(A;;GA;;;SY)(A;;GA;;;BA)"
+
+;-------------- Service installation
+[NovalingVhidMouse_Device.NT.Services]
+AddService = novaling_vhid_mouse,%SPSVCINST_ASSOCSERVICE%, NovalingVhidMouse_Service_Inst
+
+[NovalingVhidMouse_Service_Inst]
+DisplayName    = %ServiceDesc%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %13%\novaling_vhid_mouse.sys
+
+;-------------- WDF Coinstaller / KMDF version
+[NovalingVhidMouse_Device.NT.Wdf]
+KmdfService = novaling_vhid_mouse, NovalingVhidMouse_wdfsect
+
+[NovalingVhidMouse_wdfsect]
+KmdfLibraryVersion = 1.15
+
+[Strings]
+SPSVCINST_ASSOCSERVICE = 0x00000002
+ManufacturerName       = "novaling"
+DiskName               = "novaling Virtual HID Mouse Installation Disk"
+DeviceDesc             = "Novaling Virtual HID Mouse"
+ServiceDesc            = "novaling Virtual HID Mouse Driver"
