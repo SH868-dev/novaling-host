@@ -66,4 +66,41 @@ namespace platf::windows {
     std::chrono::steady_clock::time_point last_connect_attempt_ {};
   };
 
+  /**
+   * @brief Submits keyboard input to Interception's keyboard.sys filter (\\.\interception00..09).
+   *
+   * Strokes sent this way are not flagged as injected, matching the mouse client.
+   * Returns false when no keyboard slot exists (e.g. headless host) so callers can fall back.
+   */
+  class interception_keyboard_client_t {
+  public:
+    interception_keyboard_client_t();
+    ~interception_keyboard_client_t();
+
+    interception_keyboard_client_t(const interception_keyboard_client_t &) = delete;
+    interception_keyboard_client_t &operator=(const interception_keyboard_client_t &) = delete;
+
+    /** @param modcode Windows virtual-key code as received from the client. */
+    bool key(std::uint16_t modcode, bool release, bool extended);
+
+  private:
+    struct keyboard_input_data_t {
+      std::uint16_t unit_id;
+      std::uint16_t make_code;
+      std::uint16_t flags;
+      std::uint16_t reserved;
+      std::uint32_t extra_information;
+    };
+
+    bool ensure_connected_locked();
+    void disconnect_locked();
+
+    std::mutex mutex_;
+    HANDLE handle_ {INVALID_HANDLE_VALUE};
+    HANDLE event_ {nullptr};
+    int slot_ {-1};
+    bool logged_unavailable_ {false};
+    std::chrono::steady_clock::time_point last_connect_attempt_ {};
+  };
+
 }  // namespace platf::windows

@@ -524,6 +524,7 @@ namespace platf {
   struct input_raw_t {
     virtualhid::input_context_t virtualhid;  ///< libvirtualhid input context.
     windows::interception_mouse_client_t interception_mouse;  ///< Interception kernel mouse filter client.
+    windows::interception_keyboard_client_t interception_keyboard;  ///< Interception kernel keyboard filter client.
     windows::vhid_mouse_client_t novaling_mouse;  ///< novaling KMDF + VHF virtual mouse driver client.
     std::unique_ptr<vigem_t> vigem;  ///< ViGEm fallback context.
   };
@@ -721,6 +722,15 @@ namespace platf {
     if (should_fallback_mouse_to_virtualhid()) {
       virtualhid::hscroll(raw->virtualhid, high_res_distance);
     }
+  }
+
+  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags, bool extended) {
+    auto *raw = static_cast<input_raw_t *>(input.get());
+    // The game ignores SendInput (injected) keys like it does injected clicks, so follow the mouse driver choice.
+    if (should_try_interception_mouse() && raw->interception_keyboard.key(modcode, release, extended)) {
+      return;
+    }
+    virtualhid::keyboard_update(raw->virtualhid, modcode, release, flags, extended);
   }
 
   std::optional<util::point_t> get_mouse_loc(input_t & /*input*/) {

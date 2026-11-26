@@ -116,6 +116,70 @@ namespace platf::windows {
       out_event = ev;
       return true;
     }
+
+    /**
+     * @brief Open the highest-priority slot in [first, last]: physical > VHF COL01 > VHF > RDP.
+     */
+    bool connect_best_slot(int first, int last, HANDLE &out_handle, HANDLE &out_event, int &out_slot, std::wstring &out_hwid) {
+      HANDLE best_handle = INVALID_HANDLE_VALUE;
+      HANDLE best_event = nullptr;
+      int best_slot = -1;
+      std::wstring best_hwid;
+      int best_score = -1;
+
+      for (int slot = first; slot <= last; ++slot) {
+        HANDLE h = INVALID_HANDLE_VALUE;
+        HANDLE ev = nullptr;
+        std::wstring hwid;
+        if (!open_interception_slot(slot, h, ev, hwid)) {
+          continue;
+        }
+
+        int score = 0;
+        if (!hwid.empty()) {
+          const bool is_rdp = (hwid.find(L"TERMINPUT_BUS") != std::wstring::npos || hwid.find(L"RDP") != std::wstring::npos);
+          const bool is_col01 = (hwid.find(L"COL01") != std::wstring::npos);
+          const bool is_vhf = (hwid.find(L"VHF") != std::wstring::npos);
+          if (!is_rdp) {
+            score = is_col01 ? 4 : (is_vhf ? 3 : 5);  // Physical > VHF COL01 > VHF > RDP
+          } else {
+            score = 1;
+          }
+        }
+
+        if (score > best_score) {
+          if (best_handle != INVALID_HANDLE_VALUE) {
+            CloseHandle(best_handle);
+            CloseHandle(best_event);
+          }
+          best_handle = h;
+          best_event = ev;
+          best_slot = slot;
+          best_hwid = std::move(hwid);
+          best_score = score;
+        } else {
+          CloseHandle(h);
+          CloseHandle(ev);
+        }
+      }
+
+      if (best_handle == INVALID_HANDLE_VALUE) {
+        return false;
+      }
+      out_handle = best_handle;
+      out_event = best_event;
+      out_slot = best_slot;
+      out_hwid = std::move(best_hwid);
+      return true;
+    }
+
+    // Interception keyboard slots: \\.\interception00 .. \\.\interception09
+    constexpr int INTERCEPTION_KEYBOARD_SLOT_FIRST = 0;
+    constexpr int INTERCEPTION_KEYBOARD_SLOT_LAST = 9;
+
+    // KEYBOARD_INPUT_DATA Flags (ntddkbd.h)
+    constexpr std::uint16_t IC_KEY_BREAK = 0x1;
+    constexpr std::uint16_t IC_KEY_E0 = 0x2;
   }  // namespace
 
   interception_mouse_client_t::interception_mouse_client_t() {
@@ -157,51 +221,8 @@ namespace platf::windows {
     }
     last_connect_attempt_ = now;
 
-    HANDLE best_handle = INVALID_HANDLE_VALUE;
-    HANDLE best_event = nullptr;
-    int best_slot = -1;
     std::wstring best_hwid;
-    int best_score = -1;
-
-    for (int slot = INTERCEPTION_MOUSE_SLOT_FIRST; slot <= INTERCEPTION_MOUSE_SLOT_LAST; ++slot) {
-      HANDLE h = INVALID_HANDLE_VALUE;
-      HANDLE ev = nullptr;
-      std::wstring hwid;
-      if (!open_interception_slot(slot, h, ev, hwid)) {
-        continue;
-      }
-
-      int score = 0;
-      if (!hwid.empty()) {
-        const bool is_rdp = (hwid.find(L"TERMINPUT_BUS") != std::wstring::npos || hwid.find(L"RDP") != std::wstring::npos);
-        const bool is_col01 = (hwid.find(L"COL01") != std::wstring::npos);
-        const bool is_vhf = (hwid.find(L"VHF") != std::wstring::npos);
-        if (!is_rdp) {
-          score = is_col01 ? 4 : (is_vhf ? 3 : 5);  // Physical > VHF COL01 > VHF > RDP
-        } else {
-          score = 1;
-        }
-      } else {
-        score = 0;
-      }
-
-      if (score > best_score) {
-        if (best_handle != INVALID_HANDLE_VALUE) {
-          CloseHandle(best_handle);
-          CloseHandle(best_event);
-        }
-        best_handle = h;
-        best_event = ev;
-        best_slot = slot;
-        best_hwid = std::move(hwid);
-        best_score = score;
-      } else {
-        CloseHandle(h);
-        CloseHandle(ev);
-      }
-    }
-
-    if (best_handle == INVALID_HANDLE_VALUE) {
+    if (!connect_best_slot(INTERCEPTION_MOUSE_SLOT_FIRST, INTERCEPTION_MOUSE_SLOT_LAST, handle_, event_, slot_, best_hwid)) {
       if (!logged_unavailable_) {
         BOOST_LOG(warning) << "Interception mouse driver (\\\\.\\interception10..19) is not available"sv;
         logged_unavailable_ = true;
@@ -209,9 +230,6 @@ namespace platf::windows {
       return false;
     }
 
-    handle_ = best_handle;
-    event_ = best_event;
-    slot_ = best_slot;
     logged_unavailable_ = false;
     BOOST_LOG(info) << "Connected to Interception mouse driver (slot="sv << slot_
                     << ", hwid="sv << (best_hwid.empty() ? "<default>"s : utf_utils::to_utf8(best_hwid))
@@ -306,6 +324,89 @@ namespace platf::windows {
     data.button_flags = IC_MOUSE_HWHEEL;
     data.button_data = static_cast<std::uint16_t>(static_cast<std::int16_t>(std::clamp(high_res_distance, -32767, 32767)));
     return write_mouse_data_locked(data);
+  }
+
+  interception_keyboard_client_t::interception_keyboard_client_t() {
+    std::lock_guard lock {mutex_};
+    ensure_connected_locked();
+  }
+
+  interception_keyboard_client_t::~interception_keyboard_client_t() {
+    std::lock_guard lock {mutex_};
+    disconnect_locked();
+  }
+
+  void interception_keyboard_client_t::disconnect_locked() {
+    if (handle_ != INVALID_HANDLE_VALUE) {
+      CloseHandle(handle_);
+      handle_ = INVALID_HANDLE_VALUE;
+    }
+    if (event_ != nullptr) {
+      CloseHandle(event_);
+      event_ = nullptr;
+    }
+    slot_ = -1;
+  }
+
+  bool interception_keyboard_client_t::ensure_connected_locked() {
+    if (handle_ != INVALID_HANDLE_VALUE) {
+      return true;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (last_connect_attempt_ != std::chrono::steady_clock::time_point {} &&
+        (now - last_connect_attempt_) < RECONNECT_INTERVAL) {
+      return false;
+    }
+    last_connect_attempt_ = now;
+
+    std::wstring hwid;
+    if (!connect_best_slot(INTERCEPTION_KEYBOARD_SLOT_FIRST, INTERCEPTION_KEYBOARD_SLOT_LAST, handle_, event_, slot_, hwid)) {
+      if (!logged_unavailable_) {
+        BOOST_LOG(warning) << "Interception keyboard driver (\\\\.\\interception00..09) is not available; keyboard uses SendInput"sv;
+        logged_unavailable_ = true;
+      }
+      return false;
+    }
+
+    logged_unavailable_ = false;
+    BOOST_LOG(info) << "Connected to Interception keyboard driver (slot="sv << slot_
+                    << ", hwid="sv << (hwid.empty() ? "<default>"s : utf_utils::to_utf8(hwid))
+                    << ")"sv;
+    return true;
+  }
+
+  bool interception_keyboard_client_t::key(std::uint16_t modcode, bool release, bool extended) {
+    const UINT vk = modcode & 0xFFU;
+    if (vk == VK_PAUSE) {
+      return false;  // E1-prefixed sequence; leave to SendInput
+    }
+    // shortcut: maps with the host keyboard layout (same as US for Korean hosts); use libvirtualhid's US table if non-US hosts report wrong keys.
+    const UINT scan = MapVirtualKeyW(vk, MAPVK_VK_TO_VSC_EX);
+    if ((scan & 0xFFU) == 0) {
+      return false;  // no scancode (e.g. some IME keys); SendInput still handles it
+    }
+
+    keyboard_input_data_t data {};
+    data.make_code = static_cast<std::uint16_t>(scan & 0xFFU);
+    data.flags = release ? IC_KEY_BREAK : 0;
+    if (extended || (scan & 0xFF00U) == 0xE000U) {
+      data.flags |= IC_KEY_E0;
+    }
+
+    std::lock_guard lock {mutex_};
+    if (!ensure_connected_locked()) {
+      return false;
+    }
+    DWORD bytes_written = 0;
+    if (!DeviceIoControl(handle_, IC_IOCTL_WRITE, &data, static_cast<DWORD>(sizeof(data)), nullptr, 0, &bytes_written, nullptr) ||
+        bytes_written < sizeof(data)) {
+      BOOST_LOG(warning) << "Interception keyboard IOCTL_WRITE failed on slot "sv << slot_
+                         << " (Win32 error "sv << GetLastError() << "); reconnecting"sv;
+      disconnect_locked();
+      return false;
+    }
+    return true;
   }
 
 }  // namespace platf::windows
