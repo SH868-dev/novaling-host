@@ -120,12 +120,12 @@ namespace platf::windows {
     /**
      * @brief Open the highest-priority slot in [first, last]: physical > VHF COL01 > VHF > RDP.
      */
-    bool connect_best_slot(int first, int last, HANDLE &out_handle, HANDLE &out_event, int &out_slot, std::wstring &out_hwid) {
+    bool connect_best_slot(int first, int last, int min_score, HANDLE &out_handle, HANDLE &out_event, int &out_slot, std::wstring &out_hwid) {
       HANDLE best_handle = INVALID_HANDLE_VALUE;
       HANDLE best_event = nullptr;
       int best_slot = -1;
       std::wstring best_hwid;
-      int best_score = -1;
+      int best_score = min_score - 1;
 
       for (int slot = first; slot <= last; ++slot) {
         HANDLE h = INVALID_HANDLE_VALUE;
@@ -137,9 +137,15 @@ namespace platf::windows {
 
         int score = 0;
         if (!hwid.empty()) {
-          const bool is_rdp = (hwid.find(L"TERMINPUT_BUS") != std::wstring::npos || hwid.find(L"RDP") != std::wstring::npos);
-          const bool is_col01 = (hwid.find(L"COL01") != std::wstring::npos);
-          const bool is_vhf = (hwid.find(L"VHF") != std::wstring::npos);
+          std::wstring upper = hwid;
+          for (auto &ch : upper) {
+            if (ch >= L'a' && ch <= L'z') {
+              ch = static_cast<wchar_t>(ch - L'a' + L'A');
+            }
+          }
+          const bool is_rdp = (upper.find(L"TERMINPUT_BUS") != std::wstring::npos || upper.find(L"RDP") != std::wstring::npos);
+          const bool is_col01 = (upper.find(L"COL01") != std::wstring::npos);
+          const bool is_vhf = (upper.find(L"VHF") != std::wstring::npos);
           if (!is_rdp) {
             score = is_col01 ? 4 : (is_vhf ? 3 : 5);  // Physical > VHF COL01 > VHF > RDP
           } else {
@@ -180,6 +186,39 @@ namespace platf::windows {
     // KEYBOARD_INPUT_DATA Flags (ntddkbd.h)
     constexpr std::uint16_t IC_KEY_BREAK = 0x1;
     constexpr std::uint16_t IC_KEY_E0 = 0x2;
+
+    /**
+     * @brief Virtual keys whose Set-1 scancode requires the E0 prefix on Windows.
+     *
+     * MapVirtualKeyW(vk, MAPVK_VK_TO_VSC_EX) omits 0xE000 for navigation keys
+     * (arrows, Home/End, Ins/Del, PgUp/PgDn), which would otherwise be decoded
+     * as Numpad digits when a client does not set the extended flag.
+     */
+    bool is_extended_vk(UINT vk) {
+      switch (vk) {
+        case VK_PRIOR:
+        case VK_NEXT:
+        case VK_END:
+        case VK_HOME:
+        case VK_LEFT:
+        case VK_UP:
+        case VK_RIGHT:
+        case VK_DOWN:
+        case VK_INSERT:
+        case VK_DELETE:
+        case VK_LWIN:
+        case VK_RWIN:
+        case VK_APPS:
+        case VK_RCONTROL:
+        case VK_RMENU:
+        case VK_DIVIDE:
+        case VK_NUMLOCK:
+        case VK_SNAPSHOT:
+          return true;
+        default:
+          return false;
+      }
+    }
   }  // namespace
 
   interception_mouse_client_t::interception_mouse_client_t() {
@@ -222,7 +261,7 @@ namespace platf::windows {
     last_connect_attempt_ = now;
 
     std::wstring best_hwid;
-    if (!connect_best_slot(INTERCEPTION_MOUSE_SLOT_FIRST, INTERCEPTION_MOUSE_SLOT_LAST, handle_, event_, slot_, best_hwid)) {
+    if (!connect_best_slot(INTERCEPTION_MOUSE_SLOT_FIRST, INTERCEPTION_MOUSE_SLOT_LAST, 0, handle_, event_, slot_, best_hwid)) {
       if (!logged_unavailable_) {
         BOOST_LOG(warning) << "Interception mouse driver (\\\\.\\interception10..19) is not available"sv;
         logged_unavailable_ = true;
@@ -361,7 +400,8 @@ namespace platf::windows {
     last_connect_attempt_ = now;
 
     std::wstring hwid;
-    if (!connect_best_slot(INTERCEPTION_KEYBOARD_SLOT_FIRST, INTERCEPTION_KEYBOARD_SLOT_LAST, handle_, event_, slot_, hwid)) {
+    // Require physical (5) or VHF (3..4) keyboard; skip dead RDP-only slots (score <= 1) so SendInput fallback works.
+    if (!connect_best_slot(INTERCEPTION_KEYBOARD_SLOT_FIRST, INTERCEPTION_KEYBOARD_SLOT_LAST, 3, handle_, event_, slot_, hwid)) {
       if (!logged_unavailable_) {
         BOOST_LOG(warning) << "Interception keyboard driver (\\\\.\\interception00..09) is not available; keyboard uses SendInput"sv;
         logged_unavailable_ = true;
@@ -390,7 +430,7 @@ namespace platf::windows {
     keyboard_input_data_t data {};
     data.make_code = static_cast<std::uint16_t>(scan & 0xFFU);
     data.flags = release ? IC_KEY_BREAK : 0;
-    if (extended || (scan & 0xFF00U) == 0xE000U) {
+    if (extended || is_extended_vk(vk) || (scan & 0xFF00U) == 0xE000U) {
       data.flags |= IC_KEY_E0;
     }
 
